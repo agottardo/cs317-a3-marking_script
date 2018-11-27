@@ -134,6 +134,11 @@ func main() {
 	}
 	if len(dataReply) > 2 && strings.HasPrefix(dataReply, "5") {
 		log.Println("👍 It replied with 5** code to DATA right after HELO.")
+	} else if len(dataReply) > 2 && strings.HasPrefix(dataReply, "3") {
+		log.Println("⛔️ It is waiting for message DATA despite sending DATA just after HELO:", dataReply)
+		log.Println("Sending a bogus message to break out and then reading a line (test still failed).")
+		io.WriteString(conn, "From: Dave\r\nTo: Test Recipient\r\nSubject: SPAM SPAM SPAM\r\n\r\nThis is message 1 from our test script.\r\n.\r\n")
+		bufio.NewReader(conn).ReadString('\r')
 	} else {
 		log.Println("⛔️ It didn't reply properly to DATA after HELO:", dataReply)
 	}
@@ -150,6 +155,51 @@ func main() {
 	} else {
 		log.Println("⛔️ It didn't reply properly to MAIL AAA:", mail1Reply)
 	}
+
+	// Ensure that it can process an incoming email message, but reject it if the sender is unknown.
+	log.Println("TEST #8: Sending an example email message.")
+	io.WriteString(conn, "MAIL FROM:<xxxx@example.com>\r\n")
+	mailFromReply, err := bufio.NewReader(conn).ReadString('\r')
+	if err != nil {
+		log.Fatalln("⛔ Unable to read MAIL FROM reply from server:", err)
+	}
+	if len(mailFromReply) > 2 && strings.HasPrefix(mailFromReply, "2") {
+		log.Println("👍 It replied with 2** code to MAIL FROM.")
+	} else {
+		log.Println("⛔️ It didn't reply properly to MAIL FROM:", mailFromReply)
+	}
+	io.WriteString(conn, "RCPT TO:<user@thatdoesntexist.com>\r\n")
+	rcptToReply, err := bufio.NewReader(conn).ReadString('\r')
+	if err != nil {
+		log.Fatalln("⛔ Unable to read RCPT TO reply from server:", err)
+	}
+	if len(rcptToReply) > 2 && strings.HasPrefix(rcptToReply, "5") {
+		log.Println("👍 It replied with 5** code to RCPT TO.")
+	} else {
+		log.Println("⛔️ It didn't reply properly to RCPT TO:", rcptToReply)
+	}
+	io.WriteString(conn, "DATA\r\n")
+	data2Reply, err := bufio.NewReader(conn).ReadString('\r')
+	if err != nil {
+		log.Fatalln("⛔ Unable to read DATA reply from server:", err)
+	}
+	if len(data2Reply) > 2 && strings.HasPrefix(data2Reply, "3") {
+		log.Println("⛔️ It wrongly accepted DATA:", data2Reply)
+		log.Println("Sending a bogus message...")
+		io.WriteString(conn, "From: Dave\r\nTo: Test Recipient\r\nSubject: SPAM SPAM SPAM\r\n\r\nThis is message 1 from our test script.\r\n.\r\n")
+		data3Reply, err := bufio.NewReader(conn).ReadString('\r')
+		if err != nil {
+			log.Fatalln("⛔ Unable to read . reply from server:", err)
+		}
+		if len(data3Reply) > 2 && strings.HasPrefix(data3Reply, "2") {
+			log.Println("💀 It replied with 2** code to the wrong DATA (end=.).")
+		} else {
+			log.Println("⛔️ It didn't reply properly to (end=.).:", data3Reply)
+		}
+	} else {
+		log.Println("👍 It didn't reply with 3** code to DATA:", data2Reply)
+	}
+
 
 	conn.Close()
 
