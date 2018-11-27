@@ -12,6 +12,9 @@ import (
 
 var smtpExecutable *exec.Cmd
 
+var passedTestsCount = 0
+var totalTestsCount = 0
+
 const AssignmentDirectory = "/Users/agott/Downloads/a3_jonatan"
 
 func main() {
@@ -54,17 +57,17 @@ func main() {
 	log.Println("TEST #0: Attempting to connect to mysmtpd. This should work since it was provided in the starter.")
 	conn, err := net.DialTCP("tcp", localAddr, serverAddr)
 	if err != nil {
-		log.Fatalln("⛔ Catastrophic failure. Unable to connect to mysmtpd on port 50000.")
+		testFailed("Catastrophic failure. Unable to connect to mysmtpd on port 50000.")
 	}
 
 	// Make sure a banner was sent, starting with 220.
 	log.Println("TEST #1: Make sure a banner was sent, starting with 220.")
 	message, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read welcome banner from server:", err)
+		testFailed("Unable to read welcome banner from server:" + err.Error())
 	}
 	if len(message) > 4 && strings.Split(message, " ")[0] == "220" {
-		log.Println("👍 It replied with 220 and a welcome banner:", message)
+		testPassed("It replied with 220 and a welcome banner: " + message)
 	}
 
 	// Ensure that sending a wrong command returns an error
@@ -72,12 +75,12 @@ func main() {
 	io.WriteString(conn, "AAAZ\r\n")
 	errMsg, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read error from server:", err)
+		testFailed("Unable to read error from server:" + err.Error())
 	}
 	if len(message) > 2 && strings.HasPrefix(errMsg, "5") {
-		log.Println("👍 It replied with error code to a wrong command.")
+		testPassed("It replied with error code to a wrong command.")
 	} else {
-		log.Println("⛔ It didn't reply properly to AAAZ:", message)
+		testFailed("It didn't reply properly to AAAZ:" + message)
 	}
 
 	// Ensure that sending a NOOP returns a 2** code
@@ -85,12 +88,12 @@ func main() {
 	io.WriteString(conn, "NOOP\r\n")
 	noopReply, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read noop reply from server:", err)
+		testFailed("Unable to read noop reply from server:" + err.Error())
 	}
 	if len(noopReply) > 2 && strings.HasPrefix(noopReply, "2") {
-		log.Println("👍 It replied with 2** code to NOOP.")
+		testPassed("It replied with 2** code to NOOP.")
 	} else {
-		log.Println("⛔ It didn't reply properly to NOOP:", noopReply)
+		testFailed(" It didn't reply properly to NOOP:" + noopReply)
 	}
 
 	// Ensure that sending a HELO returns a 2** code
@@ -98,17 +101,17 @@ func main() {
 	io.WriteString(conn, "HELO smtp.gottardo.me\r\n")
 	heloReply, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read helo reply from server:", err)
+		testFailed("Unable to read helo reply from server:" + err.Error())
 	}
 	if len(heloReply) > 2 && strings.HasPrefix(heloReply, "2") {
-		log.Println("👍 It replied with 2** code to HELO.")
+		testPassed(" It replied with 2** code to HELO.")
 		if strings.Contains(heloReply, "smtp.gottardo.me") {
-			log.Println("👍 It replied with the client hostname to HELO.")
+			testPassed("It replied with the client hostname to HELO.")
 		} else {
-			log.Println("⛔ It didn't reply with the client hostname to HELO:", heloReply)
+			testFailed("It didn't reply with the client hostname to HELO:" + heloReply)
 		}
 	} else {
-		log.Println("⛔ It didn't reply properly to HELO:", heloReply)
+		testFailed("It didn't reply properly to HELO:" + heloReply)
 	}
 
 	// Ensure that it rejects RCPT without sending MAIL before it.
@@ -116,13 +119,13 @@ func main() {
 	io.WriteString(conn, "RCPT TO:<god@heaven.paradise>\r\n")
 	rcptReply, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read RCPT reply from server:", err)
+		testFailed("Unable to read RCPT reply from server: " + err.Error())
 	}
 	// make sure they don't reply the user doesn't exist (550), that's wrong at this point
 	if len(rcptReply) > 2 && strings.HasPrefix(rcptReply, "5") && !strings.HasPrefix(rcptReply, "550") {
-		log.Println("👍 It replied with 5** code to RCPT without MAIL before it.")
+		testPassed("It replied with 5** code to RCPT without MAIL before it.")
 	} else {
-		log.Println("⛔️ It didn't reply properly to RCPT without MAIL before it:", rcptReply)
+		testFailed("It didn't reply properly to RCPT without MAIL before it: " + rcptReply)
 	}
 
 	// Ensure that it rejects DATA just after HELO.
@@ -130,17 +133,17 @@ func main() {
 	io.WriteString(conn, "DATA\r\n")
 	dataReply, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read DATA reply from server:", err)
+		testFailed("Unable to read DATA reply from server: " + err.Error())
 	}
 	if len(dataReply) > 2 && strings.HasPrefix(dataReply, "5") {
-		log.Println("👍 It replied with 5** code to DATA right after HELO.")
+		testPassed("It replied with 5** code to DATA right after HELO.")
 	} else if len(dataReply) > 2 && strings.HasPrefix(dataReply, "3") {
-		log.Println("⛔️ It is waiting for message DATA despite sending DATA just after HELO:", dataReply)
+		testFailed("It is waiting for message DATA despite sending DATA just after HELO: " + dataReply)
 		log.Println("Sending a bogus message to break out and then reading a line (test still failed).")
 		io.WriteString(conn, "From: Dave\r\nTo: Test Recipient\r\nSubject: SPAM SPAM SPAM\r\n\r\nThis is message 1 from our test script.\r\n.\r\n")
 		bufio.NewReader(conn).ReadString('\r')
 	} else {
-		log.Println("⛔️ It didn't reply properly to DATA after HELO:", dataReply)
+		testFailed("It didn't reply properly to DATA after HELO: " + dataReply)
 	}
 
 	// Ensure that it rejects MAIL with a wrong parameter (AAA) instead of FROM.
@@ -148,12 +151,12 @@ func main() {
 	io.WriteString(conn, "MAIL AAA\r\n")
 	mail1Reply, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read MAIL AAA reply from server:", err)
+		testFailed("Unable to read MAIL AAA reply from server: " + err.Error())
 	}
 	if len(mail1Reply) > 2 && strings.HasPrefix(mail1Reply, "5") {
-		log.Println("👍 It replied with 5** code to MAIL AAA.")
+		testPassed("It replied with 5** code to MAIL AAA.")
 	} else {
-		log.Println("⛔️ It didn't reply properly to MAIL AAA:", mail1Reply)
+		testFailed("It didn't reply properly to MAIL AAA: " + mail1Reply)
 	}
 
 	// Ensure that it can process an incoming email message, but reject it if the sender is unknown.
@@ -161,48 +164,47 @@ func main() {
 	io.WriteString(conn, "MAIL FROM:<xxxx@example.com>\r\n")
 	mailFromReply, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read MAIL FROM reply from server:", err)
+		testFailed("Unable to read MAIL FROM reply from server: " + err.Error())
 	}
 	if len(mailFromReply) > 2 && strings.HasPrefix(mailFromReply, "2") {
-		log.Println("👍 It replied with 2** code to MAIL FROM.")
+		testPassed("It replied with 2** code to MAIL FROM.")
 	} else {
-		log.Println("⛔️ It didn't reply properly to MAIL FROM:", mailFromReply)
+		testFailed("It didn't reply properly to MAIL FROM: " + mailFromReply)
 	}
 	io.WriteString(conn, "RCPT TO:<user@thatdoesntexist.com>\r\n")
 	rcptToReply, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read RCPT TO reply from server:", err)
+		testFailed("Unable to read RCPT TO reply from server:" + err.Error())
 	}
 	if len(rcptToReply) > 2 && strings.HasPrefix(rcptToReply, "5") {
-		log.Println("👍 It replied with 5** code to RCPT TO.")
+		testPassed("It replied with 5** code to RCPT TO.")
 	} else {
-		log.Println("⛔️ It didn't reply properly to RCPT TO:", rcptToReply)
+		testFailed("It didn't reply properly to RCPT TO: " + rcptToReply)
 	}
 	io.WriteString(conn, "DATA\r\n")
 	data2Reply, err := bufio.NewReader(conn).ReadString('\r')
 	if err != nil {
-		log.Fatalln("⛔ Unable to read DATA reply from server:", err)
+		testFailed("Unable to read DATA reply from server: " + err.Error())
 	}
 	if len(data2Reply) > 2 && strings.HasPrefix(data2Reply, "3") {
-		log.Println("⛔️ It wrongly accepted DATA:", data2Reply)
+		testFailed("It wrongly accepted DATA: " + data2Reply)
 		log.Println("Sending a bogus message...")
 		io.WriteString(conn, "From: Dave\r\nTo: Test Recipient\r\nSubject: SPAM SPAM SPAM\r\n\r\nThis is message 1 from our test script.\r\n.\r\n")
 		data3Reply, err := bufio.NewReader(conn).ReadString('\r')
 		if err != nil {
-			log.Fatalln("⛔ Unable to read . reply from server:", err)
+			testFailed("Unable to read . reply from server: " + err.Error())
 		}
 		if len(data3Reply) > 2 && strings.HasPrefix(data3Reply, "2") {
-			log.Println("💀 It replied with 2** code to the wrong DATA (end=.).")
+			testFailed("It replied with 2** code to the wrong DATA (end=.).")
 		} else {
-			log.Println("⛔️ It didn't reply properly to (end=.).:", data3Reply)
+			testFailed("It didn't reply properly to (end=.).: " + data3Reply)
 		}
 	} else {
-		log.Println("👍 It didn't reply with 3** code to DATA:", data2Reply)
+		testPassed("It didn't reply with 3** code to DATA: " + data2Reply)
 	}
 
-
 	conn.Close()
-
+	printFinalResults()
 	log.Println("👋 End of marking script. Killing mysmtpd. Goodbye.")
 	smtpExecutable.Process.Kill()
 }
@@ -214,4 +216,19 @@ func startSMTPServer() {
 	if err != nil {
 		log.Fatalln("⛔ Error returned when running assignment: ", err)
 	}
+}
+
+func testPassed(msg string) {
+	log.Println("👍 TEST PASSED:", msg)
+	passedTestsCount += 1
+	totalTestsCount += 1
+}
+
+func testFailed(msg string) {
+	log.Println("⛔️ TEST FAILED:", msg)
+	totalTestsCount += 1
+}
+
+func printFinalResults() {
+	log.Printf("🙈 End of tests. Final score: %.1f/100", float64(passedTestsCount)/float64(totalTestsCount)*100)
 }
