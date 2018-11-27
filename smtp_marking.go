@@ -138,7 +138,18 @@ func main() {
 		log.Println("⛔️ It didn't reply properly to DATA after HELO:", dataReply)
 	}
 
-
+	// Ensure that it rejects MAIL with a wrong parameter (AAA) instead of FROM.
+	log.Println("TEST #7: Sending 'MAIL AAA' (wrong parameter) to ensure it is rejected.")
+	io.WriteString(conn, "MAIL AAA\r\n")
+	mail1Reply, err := bufio.NewReader(conn).ReadString('\r')
+	if err != nil {
+		log.Fatalln("⛔ Unable to read MAIL AAA reply from server:", err)
+	}
+	if len(mail1Reply) > 2 && strings.HasPrefix(mail1Reply, "5") {
+		log.Println("👍 It replied with 5** code to MAIL AAA.")
+	} else {
+		log.Println("⛔️ It didn't reply properly to MAIL AAA:", mail1Reply)
+	}
 
 	conn.Close()
 
